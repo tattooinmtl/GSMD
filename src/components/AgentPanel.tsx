@@ -4,6 +4,7 @@ import { useStore } from '../store/useStore';
 import { providerMeta } from '../lib/aiProviders';
 import { indexAssistantReply, listMemories, listTurns, saveMemory, saveTurn, searchMemories, type ChatTurn, type MemoryRecord } from '../lib/librarian';
 import { isSupportedImage, requestGlobeRecording, requestGlobeScreenshot, toPngDataUrl } from '../lib/globeCapture';
+import { callAiProvider } from '../lib/aiClient';
 
 type UiTurn = ChatTurn & { pending?: boolean };
 
@@ -81,9 +82,7 @@ export default function AgentPanel() {
     input.push({ role: 'user', content: onlyText ? content : userContent });
     if (!supportsVision && imgs.length > 0) setError(`${provider.label} does not support image inputs. Sending text only.`);
     try {
-      const res = await fetch('/api/ai/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider: aiProvider, apiKey: activeKey, model: aiModel, input }) });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Agent request failed');
+      const data = await callAiProvider(aiProvider, activeKey, aiModel, input as any);
       const reply: UiTurn = { id: crypto.randomUUID(), role: 'assistant', content: data.text || '(no text)', createdAt: new Date().toISOString() };
       setTurns((t) => [...t, reply]); await saveTurn(reply);
       const indexed = await indexAssistantReply(reply.content);
