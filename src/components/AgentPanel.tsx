@@ -16,6 +16,7 @@ import {
   type MemoryRecord,
 } from '../lib/librarian';
 import { isSupportedImage, requestGlobeRecording, requestGlobeScreenshot, toPngDataUrl } from '../lib/globeCapture';
+import { callAiProvider } from '../lib/aiClient';
 
 type UiTurn = ChatTurn & { pending?: boolean };
 
@@ -165,18 +166,11 @@ export default function AgentPanel() {
     }
 
     try {
-      const res = await fetch('/api/ai/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          provider: aiProvider,
-          apiKey: activeKey,
-          model: aiModel,
-          input,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Agent request failed');
+      const messages = input.map((m: any) => ({
+        role: m.role,
+        content: m.content,
+      }));
+      const data = await callAiProvider(aiProvider, activeKey, aiModel, messages);
       const reply: UiTurn = {
         id: crypto.randomUUID(),
         role: 'assistant',
