@@ -1,5 +1,64 @@
+# Dependencies
 node_modules/
+.pnpm-store/
+.yarn/
+.npm/
+
+# Build output
 .next/
 dist/
 build/
+out/
+
+# Logs
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment / secrets — NEVER commit these
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+credentials.json
+secrets.json
+.secrets/
+
+# Local IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Local caches
+.cache/
+.parcel-cache/
+.turbo/
+.vite/
+
+# Playwright / test artifacts
+.playwright-mcp/
+playwright-report/
+test-results/
+
+# Local development screenshots and captures
+*.png
+*.jpg
+*.jpeg
+!public/**/*.png
+!public/**/*.jpg
+!public/**/*.jpeg
+!src/**/*.png
+!src/**/*.jpg
+!src/**/*.jpeg
+
+# Local storage / DB dumps
+*.sqlite
+*.sqlite3
+*.db

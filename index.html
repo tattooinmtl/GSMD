@@ -19,13 +19,13 @@
       }
       html.light,
       html.light body {
-        background-color: #ffffff !important;
-        color: #000000;
+        background-color: #dce3ea;
+        color: #12181f;
       }
       html.dark,
       html.dark body {
-        background-color: #1a1a1a !important;
-        color: #ffffff;
+        background-color: #07090c;
+        color: #f2f5f8;
       }
     </style>
     <script>
@@ -37,10 +37,15 @@
           document.documentElement.classList.remove("light", "dark");
           document.documentElement.classList.add(theme);
           document.documentElement.setAttribute("data-theme", theme);
+          document.documentElement.style.colorScheme = theme;
         }
 
+        var saved = null;
+        try {
+          saved = localStorage.getItem("earth_theme");
+        } catch (e) {}
+
         if (isInIframe) {
-          // 监听父窗口主动推送的主题消息
           window.addEventListener("message", function (event) {
             if (event.data && typeof event.data.theme === "string") {
               const theme = event.data.theme;
@@ -49,9 +54,9 @@
               }
             }
           });
+          applyThemeToDOM(saved === "light" || saved === "dark" ? saved : "dark");
         } else {
-          // 非 iframe 环境，使用默认 light 主题
-          applyThemeToDOM("light");
+          applyThemeToDOM(saved === "light" || saved === "dark" ? saved : "dark");
         }
       })();
     </script>

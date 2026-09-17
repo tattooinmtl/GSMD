@@ -1,14 +1,19 @@
 import { useState } from 'react';
-import { useStore } from '../store/useStore';
+import { useStore, type ThemeMode } from '../store/useStore';
+import { LozengeRow } from './LayerLozenges';
+import { AI_PROVIDERS } from '../lib/aiProviders';
 import {
   Mountain, Flame, Activity, CloudLightning, Waves, TreePine,
-  Snowflake, FlaskConical, Settings, CloudSun, X, ChevronDown,
-  ChevronRight, Eye, EyeOff, SlidersHorizontal, MapPin,
-  Globe2, Layers, Plus, Minus, Search, Satellite, Thermometer,
-  Wind, Droplets, Cloud, Sun, Leaf, Lightbulb, Anchor
+  Snowflake, FlaskConical, Settings, CloudSun, X,
+  MapPin, Globe2, Layers, Search, Satellite,
+  Thermometer, Wind, Droplets, Cloud, Sun, Leaf, Lightbulb, Anchor,
+  CloudRain, CloudFog, TrendingUp, MountainSnow, Droplet,
+  LocateFixed, Moon, PanelLeftClose, PanelLeftOpen
 } from 'lucide-react';
 
-const iconMap: Record<string, any> = {
+const iconStroke = 1.75;
+
+const iconMap: Record<string, typeof Cloud> = {
   mountain: Mountain,
   flame: Flame,
   activity: Activity,
@@ -27,15 +32,15 @@ const iconMap: Record<string, any> = {
   leaf: Leaf,
   lightbulb: Lightbulb,
   anchor: Anchor,
-  'cloud-rain': CloudLightning,
-  'trending-up': Activity,
-  droplet: Droplets,
-  'mountain-snow': Mountain,
-  smoke: Cloud,
+  'cloud-rain': CloudRain,
+  'trending-up': TrendingUp,
+  droplet: Droplet,
+  'mountain-snow': MountainSnow,
+  smoke: CloudFog,
 };
 
 function DockContent({ dockId }: { dockId: string }) {
-  const { layers, toggleLayer, setLayerOpacity, events } = useStore();
+  const { layers, events, selectedEvent, selectEvent } = useStore();
   const [searchTerm, setSearchTerm] = useState('');
 
   const categoryMap: Record<string, string> = {
@@ -61,113 +66,79 @@ function DockContent({ dockId }: { dockId: string }) {
 
   const getFilteredLayers = () => {
     if (dockId === 'settings') return layers;
-    if (dockId === 'simulation') return layers.filter(l => l.type === 'simulation');
-    
+    if (dockId === 'simulation') return layers.filter((l) => l.type === 'simulation');
+    if (dockId === 'pollution' || dockId === 'weather') {
+      return layers.filter((l) => l.category === 'pollution' || l.category === 'weather');
+    }
+
     if (categoryFilter[dockId]) {
-      const layerIds = categoryFilter[dockId];
-      return layers.filter(l => layerIds.includes(l.id));
+      return layers.filter((l) => categoryFilter[dockId].includes(l.id));
     }
-    
+
     const category = categoryMap[dockId];
-    if (category) {
-      return layers.filter(l => l.category === category);
-    }
-    
+    if (category) return layers.filter((l) => l.category === category);
     return layers;
   };
 
-  const filteredLayers = getFilteredLayers().filter(l =>
+  const filteredLayers = getFilteredLayers().filter((l) =>
     l.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const getDockEvents = () => {
-    const eventCategoryMap: Record<string, string> = {
-      volcanoes: 'volcanoes',
-      earthquakes: 'earthquakes',
-      storms: 'severeStorms',
-      wildfires: 'wildfires',
-    };
-    const cat = eventCategoryMap[dockId];
-    if (!cat) return [];
-    return events.filter(e => e.category === cat).slice(0, 10);
+  const eventCategoryMap: Record<string, string> = {
+    volcanoes: 'volcanoes',
+    earthquakes: 'earthquakes',
+    storms: 'severeStorms',
+    wildfires: 'wildfires',
   };
-
-  const dockEvents = getDockEvents();
+  const dockEvents = eventCategoryMap[dockId]
+    ? events.filter((e) => e.category === eventCategoryMap[dockId]).slice(0, 10)
+    : [];
 
   if (dockId === 'settings') {
     return <SettingsContent />;
   }
 
   return (
-    <div className="p-3 space-y-3">
-      {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-2 top-2 w-4 h-4 text-gray-500" />
+    <div>
+      <div className="side-search">
+        <Search size={14} strokeWidth={iconStroke} />
         <input
-          type="text"
+          type="search"
           placeholder="Search layers..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full bg-gray-800/50 border border-gray-700 rounded-lg pl-8 pr-3 py-1.5 text-xs text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500"
+          aria-label="Search layers"
         />
       </div>
 
-      {/* Layer toggles */}
-      <div className="space-y-1.5 max-h-[300px] overflow-y-auto custom-scrollbar">
-        {filteredLayers.map((layer) => {
-          const Icon = iconMap[layer.icon] || Layers;
-          return (
-            <div key={layer.id} className="bg-gray-800/40 rounded-lg p-2 border border-gray-700/50 hover:border-gray-600 transition-colors">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 flex-1 min-w-0">
-                  <Icon className="w-3.5 h-3.5 flex-shrink-0" style={{ color: layer.color }} />
-                  <span className="text-xs text-gray-200 truncate">{layer.name}</span>
-                </div>
-                <button
-                  onClick={() => toggleLayer(layer.id)}
-                  className="p-1 rounded hover:bg-gray-700 transition-colors"
-                >
-                  {layer.enabled ? (
-                    <Eye className="w-3.5 h-3.5 text-blue-400" />
-                  ) : (
-                    <EyeOff className="w-3.5 h-3.5 text-gray-500" />
-                  )}
-                </button>
-              </div>
-              {layer.enabled && (
-                <div className="mt-2 flex items-center gap-2">
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    value={layer.opacity * 100}
-                    onChange={(e) => setLayerOpacity(layer.id, parseInt(e.target.value) / 100)}
-                    className="flex-1 h-1 bg-gray-700 rounded-full appearance-none cursor-pointer accent-blue-500"
-                  />
-                  <span className="text-[10px] text-gray-500 w-8 text-right">{Math.round(layer.opacity * 100)}%</span>
-                </div>
-              )}
-              <p className="text-[10px] text-gray-500 mt-1 leading-tight">{layer.description}</p>
-            </div>
-          );
-        })}
-      </div>
+      {filteredLayers.length === 0 ? (
+        <div className="side-empty" style={{ minHeight: 120 }}>
+          <Layers size={28} strokeWidth={iconStroke} />
+          <p>{dockId === 'simulation' ? 'No simulations are loaded yet.' : 'No layers match that search.'}</p>
+        </div>
+      ) : (
+        <LozengeRow layers={filteredLayers} showDetail />
+      )}
 
-      {/* Active events list */}
       {dockEvents.length > 0 && (
-        <div className="border-t border-gray-700 pt-3">
-          <h4 className="text-xs font-semibold text-gray-400 mb-2 flex items-center gap-1">
-            <Activity className="w-3 h-3" />
-            Active Events ({dockEvents.length})
-          </h4>
-          <div className="space-y-1 max-h-[200px] overflow-y-auto custom-scrollbar">
+        <div>
+          <div className="section-title">
+            <Activity size={12} strokeWidth={iconStroke} />
+            Active events ({dockEvents.length})
+          </div>
+          <div className="event-list">
             {dockEvents.map((event) => (
-              <div key={event.id} className="bg-gray-800/30 rounded p-2 border border-gray-700/30">
-                <p className="text-xs text-gray-200 font-medium truncate">{event.title}</p>
-                <p className="text-[10px] text-gray-500">
+              <button
+                type="button"
+                key={event.id}
+                className={`event-item${selectedEvent?.id === event.id ? ' is-on' : ''}`}
+                onClick={() => selectEvent(event, { flyTo: true })}
+              >
+                <p className="event-title">{event.title}</p>
+                <p className="event-meta">
                   {event.geometry[0]?.date && new Date(event.geometry[0].date).toLocaleDateString()}
                 </p>
-              </div>
+              </button>
             ))}
           </div>
         </div>
@@ -183,84 +154,167 @@ function SettingsContent() {
     atmosphereEnabled, setAtmosphereEnabled,
     userLocation, setUserLocation,
     apiKey, setApiKey,
-    setShowApiKeyModal
+    theme, setTheme,
+    minimaxKey, setMinimaxKey,
+    nvidiaKey, setNvidiaKey,
+    aiProvider, setAiProvider,
+    aiModel, setAiModel,
+    setAgentOpen,
   } = useStore();
 
   const handleGeolocate = () => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-        },
-        (err) => console.error('Geolocation error:', err)
-      );
-    }
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      (err) => console.error('Geolocation error:', err)
+    );
   };
 
-  return (
-    <div className="p-3 space-y-4">
-      {/* NASA API Key */}
-      <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/50">
-        <h4 className="text-xs font-semibold text-blue-400 mb-2 flex items-center gap-1">
-          <Satellite className="w-3 h-3" />
-          NASA API Configuration
-        </h4>
-        <input
-          type="password"
-          placeholder="Enter NASA API Key..."
-          value={apiKey}
-          onChange={(e) => setApiKey(e.target.value)}
-          className="w-full bg-gray-900/50 border border-gray-700 rounded px-2 py-1.5 text-xs text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500"
-        />
-        <p className="text-[10px] text-gray-500 mt-1">
-          Get your free key at: <a href="https://urs.earthdata.nasa.gov/users/new" target="_blank" className="text-blue-400 hover:underline">urs.earthdata.nasa.gov</a>
-        </p>
-      </div>
+  const pickTheme = (next: ThemeMode) => setTheme(next);
 
-      {/* Display Options */}
-      <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/50">
-        <h4 className="text-xs font-semibold text-gray-300 mb-2">Display Options</h4>
-        <div className="space-y-2">
-          <ToggleOption label="Country Labels" enabled={showLabels} onToggle={() => setShowLabels(!showLabels)} />
-          <ToggleOption label="Grid Lines" enabled={showGridLines} onToggle={() => setShowGridLines(!showGridLines)} />
-          <ToggleOption label="Atmosphere" enabled={atmosphereEnabled} onToggle={() => setAtmosphereEnabled(!atmosphereEnabled)} />
+  return (
+    <div>
+      <div className="settings-block">
+        <h4>
+          <Sun size={13} strokeWidth={iconStroke} />
+          Appearance
+        </h4>
+        <div className="theme-pair">
+          <button
+            type="button"
+            className={`theme-choice${theme === 'dark' ? ' is-on' : ''}`}
+            onClick={() => pickTheme('dark')}
+            aria-pressed={theme === 'dark'}
+          >
+            <Moon size={16} strokeWidth={iconStroke} />
+            Dark
+          </button>
+          <button
+            type="button"
+            className={`theme-choice${theme === 'light' ? ' is-on' : ''}`}
+            onClick={() => pickTheme('light')}
+            aria-pressed={theme === 'light'}
+          >
+            <Sun size={16} strokeWidth={iconStroke} />
+            Light
+          </button>
         </div>
       </div>
 
-      {/* Location */}
-      <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/50">
-        <h4 className="text-xs font-semibold text-gray-300 mb-2 flex items-center gap-1">
-          <MapPin className="w-3 h-3" />
-          Your Location
+      <div className="settings-block">
+        <h4>Researcher providers</h4>
+        <div className="provider-pick" style={{ marginBottom: 8 }}>
+          {AI_PROVIDERS.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              className={`hud-chip${aiProvider === p.id ? ' is-on' : ''}`}
+              onClick={() => setAiProvider(p.id)}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+        {aiProvider === 'minimax' && (
+          <input
+            className="field-input"
+            type="password"
+            placeholder="sk-..."
+            value={minimaxKey}
+            onChange={(e) => setMinimaxKey(e.target.value)}
+            autoComplete="off"
+          />
+        )}
+        {aiProvider === 'nvidia' && (
+          <input
+            className="field-input"
+            type="password"
+            placeholder="nvapi-..."
+            value={nvidiaKey}
+            onChange={(e) => setNvidiaKey(e.target.value)}
+            autoComplete="off"
+          />
+        )}
+        <select
+          className="field-input"
+          style={{ marginTop: 8 }}
+          value={AI_PROVIDERS.find((p) => p.id === aiProvider)?.models.includes(aiModel) ? aiModel : (AI_PROVIDERS.find((p) => p.id === aiProvider)?.models[0] || aiModel)}
+          onChange={(e) => setAiModel(e.target.value)}
+        >
+          {(AI_PROVIDERS.find((p) => p.id === aiProvider)?.models || []).map((m) => (
+            <option key={m} value={m}>{m}</option>
+          ))}
+        </select>
+        <button type="button" className="ui-btn primary" style={{ marginTop: 8 }} onClick={() => setAgentOpen(true)}>
+          Open agent
+        </button>
+        <p className="layer-desc">
+          Keys from{' '}
+          <a className="hint-link" href="https://platform.minimax.io" target="_blank" rel="noreferrer">minimax.io</a>
+          {' '}or{' '}
+          <a className="hint-link" href="https://build.nvidia.com" target="_blank" rel="noreferrer">NVIDIA</a>
+        </p>
+      </div>
+
+      <div className="settings-block">
+        <h4>
+          <Satellite size={13} strokeWidth={iconStroke} />
+          NASA API
+        </h4>
+        <input
+          className="field-input"
+          type="password"
+          placeholder="Enter NASA API key..."
+          value={apiKey}
+          onChange={(e) => setApiKey(e.target.value)}
+          autoComplete="off"
+        />
+        <p className="layer-desc">
+          Free key at{' '}
+          <a className="hint-link" href="https://urs.earthdata.nasa.gov/users/new" target="_blank" rel="noreferrer">
+            urs.earthdata.nasa.gov
+          </a>
+        </p>
+      </div>
+
+      <div className="settings-block">
+        <h4>Display</h4>
+        <ToggleOption label="Country labels" enabled={showLabels} onToggle={() => setShowLabels(!showLabels)} />
+        <ToggleOption label="Grid lines" enabled={showGridLines} onToggle={() => setShowGridLines(!showGridLines)} />
+        <ToggleOption label="Atmosphere" enabled={atmosphereEnabled} onToggle={() => setAtmosphereEnabled(!atmosphereEnabled)} />
+      </div>
+
+      <div className="settings-block">
+        <h4>
+          <MapPin size={13} strokeWidth={iconStroke} />
+          Your location
         </h4>
         {userLocation ? (
-          <div className="text-xs text-gray-300">
-            <p>Lat: {userLocation.lat.toFixed(4)}°</p>
-            <p>Lng: {userLocation.lng.toFixed(4)}°</p>
-            <button onClick={() => setUserLocation(null)} className="text-red-400 text-[10px] mt-1 hover:underline">
+          <div>
+            <p className="event-title">Lat {userLocation.lat.toFixed(4)}°</p>
+            <p className="event-meta">Lng {userLocation.lng.toFixed(4)}°</p>
+            <button type="button" className="ui-btn danger" style={{ marginTop: 8 }} onClick={() => setUserLocation(null)}>
               Remove marker
             </button>
           </div>
         ) : (
-          <button
-            onClick={handleGeolocate}
-            className="w-full bg-blue-600/20 border border-blue-500/30 text-blue-300 rounded-lg px-3 py-1.5 text-xs hover:bg-blue-600/30 transition-colors"
-          >
-            📍 Detect My Location
+          <button type="button" className="ui-btn primary" onClick={handleGeolocate}>
+            <LocateFixed size={14} strokeWidth={iconStroke} />
+            Detect my location
           </button>
         )}
       </div>
 
-      {/* Data Sources */}
-      <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/50">
-        <h4 className="text-xs font-semibold text-gray-300 mb-2">Data Sources</h4>
-        <div className="space-y-1 text-[10px] text-gray-500">
-          <p>• NASA EONET (Earth Observatory Natural Event Tracker)</p>
-          <p>• NASA GIBS (Global Imagery Browse Services)</p>
-          <p>• USGS Earthquake Hazards Program</p>
-          <p>• NOAA Global Monitoring Laboratory</p>
-          <p>• ESA Copernicus Atmosphere Service</p>
-          <p>• MODIS/VIIRS Fire & Thermal Anomalies</p>
+      <div className="settings-block">
+        <h4>Data sources</h4>
+        <div className="source-list">
+          <span>OpenStreetMap (map, borders, names)</span>
+          <span>NASA EONET</span>
+          <span>NASA GIBS</span>
+          <span>USGS Earthquake Hazards Program</span>
+          <span>NOAA Global Monitoring Laboratory</span>
+          <span>ESA Copernicus Atmosphere Service</span>
+          <span>MODIS / VIIRS fire anomalies</span>
         </div>
       </div>
     </div>
@@ -269,108 +323,102 @@ function SettingsContent() {
 
 function ToggleOption({ label, enabled, onToggle }: { label: string; enabled: boolean; onToggle: () => void }) {
   return (
-    <div className="flex items-center justify-between">
-      <span className="text-xs text-gray-300">{label}</span>
+    <div className="toggle-row">
+      <span>{label}</span>
       <button
+        type="button"
+        className={`layer-switch${enabled ? ' is-on' : ''}`}
         onClick={onToggle}
-        className={`w-8 h-4 rounded-full transition-colors ${enabled ? 'bg-blue-500' : 'bg-gray-600'}`}
+        aria-pressed={enabled}
+        aria-label={label}
       >
-        <div className={`w-3 h-3 rounded-full bg-white transition-transform mx-0.5 ${enabled ? 'translate-x-4' : 'translate-x-0'}`} />
+        <span className="knob" />
       </button>
     </div>
   );
 }
 
 export default function SidePanel() {
-  const { docks, toggleDock, activeDock, setActiveDock } = useStore();
+  const { docks, activeDock, setActiveDock } = useStore();
   const [collapsed, setCollapsed] = useState(false);
+  const active = docks.find((d) => d.id === activeDock);
+  const ActiveIcon = iconMap[active?.icon || ''] || Settings;
+
+  const shellClass = [
+    'side-shell',
+    collapsed ? 'is-collapsed' : activeDock ? 'is-open' : 'is-idle',
+  ].join(' ');
 
   return (
-    <div className={`h-full flex transition-all duration-300 ${collapsed ? 'w-12' : 'w-80'}`}>
-      {/* Dock icons rail */}
-      <div className="w-12 bg-gray-900/95 border-r border-gray-800 flex flex-col items-center py-2 gap-1 overflow-y-auto custom-scrollbar">
+    <aside className={shellClass} aria-label="Layer controls">
+      <nav className="side-rail custom-scrollbar" aria-label="Layer docks">
         {docks.map((dock) => {
           const Icon = iconMap[dock.icon] || Settings;
           const isActive = activeDock === dock.id;
           return (
             <button
               key={dock.id}
-              onClick={() => {
-                if (isActive) {
-                  setActiveDock(null);
-                } else {
-                  setActiveDock(dock.id);
-                }
-              }}
-              className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all relative group ${
-                isActive
-                  ? 'bg-blue-600/30 text-blue-400 border border-blue-500/50'
-                  : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
-              }`}
-              title={dock.title}
+              type="button"
+              className={`dock-btn${isActive ? ' is-active' : ''}`}
+              onClick={() => setActiveDock(isActive ? null : dock.id)}
+              aria-pressed={isActive}
+              aria-label={dock.title}
             >
-              <Icon className="w-4 h-4" />
-              {dock.pinned && (
-                <div className="absolute top-0.5 right-0.5 w-1.5 h-1.5 bg-blue-400 rounded-full" />
-              )}
-              {/* Tooltip */}
-              <div className="absolute left-full ml-2 bg-gray-800 text-gray-200 text-[10px] px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                {dock.title}
-              </div>
+              <Icon size={16} strokeWidth={iconStroke} />
+              <span className="dock-tip">{dock.title}</span>
             </button>
           );
         })}
-        
-        {/* Collapse toggle */}
-        <div className="mt-auto">
+
+        <div className="mt-auto" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <button
-            onClick={() => setCollapsed(!collapsed)}
-            className="w-9 h-9 rounded-lg flex items-center justify-center text-gray-500 hover:text-gray-300 hover:bg-gray-800 transition-colors"
+            type="button"
+            className="dock-btn"
+            onClick={() => setCollapsed((v) => !v)}
+            aria-label={collapsed ? 'Expand panel' : 'Collapse panel'}
           >
-            {collapsed ? <ChevronRight className="w-4 h-4" /> : <X className="w-4 h-4" />}
+            {collapsed ? (
+              <PanelLeftOpen size={16} strokeWidth={iconStroke} />
+            ) : (
+              <PanelLeftClose size={16} strokeWidth={iconStroke} />
+            )}
+            <span className="dock-tip">{collapsed ? 'Expand' : 'Collapse'}</span>
           </button>
         </div>
-      </div>
+      </nav>
 
-      {/* Dock content panel */}
-      {!collapsed && activeDock && (
-        <div className="flex-1 bg-gray-900/95 border-r border-gray-800 overflow-hidden flex flex-col">
-          {/* Dock header */}
-          <div className="px-3 py-2 border-b border-gray-800 flex items-center justify-between bg-gray-800/30">
-            <div className="flex items-center gap-2">
-              {(() => {
-                const dock = docks.find(d => d.id === activeDock);
-                const Icon = iconMap[dock?.icon || ''] || Settings;
-                return <Icon className="w-4 h-4 text-blue-400" />;
-              })()}
-              <h3 className="text-sm font-semibold text-gray-200">
-                {docks.find(d => d.id === activeDock)?.title}
-              </h3>
+      {!collapsed && activeDock && active && (
+        <section className="side-body">
+          <div className="side-header">
+            <div className="side-kicker">
+              <span className="side-kicker-icon">
+                <ActiveIcon size={14} strokeWidth={iconStroke} />
+              </span>
+              <h3>{active.title}</h3>
             </div>
             <button
+              type="button"
+              className="icon-btn"
               onClick={() => setActiveDock(null)}
-              className="text-gray-500 hover:text-gray-300 transition-colors"
+              aria-label="Close dock"
             >
-              <X className="w-4 h-4" />
+              <X size={15} strokeWidth={iconStroke} />
             </button>
           </div>
-          
-          {/* Dock content */}
-          <div className="flex-1 overflow-y-auto custom-scrollbar">
+          <div className="side-content custom-scrollbar">
             <DockContent dockId={activeDock} />
           </div>
-        </div>
+        </section>
       )}
 
-      {/* Empty state when no dock is active */}
       {!collapsed && !activeDock && (
-        <div className="flex-1 bg-gray-900/95 border-r border-gray-800 flex items-center justify-center">
-          <div className="text-center p-4">
-            <Globe2 className="w-12 h-12 text-gray-700 mx-auto mb-3" />
-            <p className="text-xs text-gray-500">Select a dock to view layers and data</p>
+        <section className="side-body">
+          <div className="side-empty">
+            <Globe2 size={36} strokeWidth={iconStroke} />
+            <p>Pick a dock on the left to open layers, filters, and live events.</p>
           </div>
-        </div>
+        </section>
       )}
-    </div>
+    </aside>
   );
 }

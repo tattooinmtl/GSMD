@@ -1,11 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type CSSProperties } from 'react';
 import Globe from './components/Globe';
 import SidePanel from './components/SidePanel';
-import { useStore } from './store/useStore';
+import AgentPanel from './components/AgentPanel';
+import LiveStationsPanel from './components/LiveStationsPanel';
+import { LozengeRow } from './components/LayerLozenges';
+import { applyDocumentTheme, useStore } from './store/useStore';
 import { useNasaEvents } from './hooks/useNasaData';
+import { AI_PROVIDERS, providerMeta, type AiProvider } from './lib/aiProviders';
 import {
   Satellite, AlertTriangle, Flame, Mountain, CloudLightning,
-  Activity, Layers, Info, X, ChevronDown, ChevronUp
+  Activity, Layers, Info, ChevronDown, ChevronUp, Moon, Sun, Bot, Radio,
+  Play, Pause
 } from 'lucide-react';
 
 function StatusBar() {
@@ -17,7 +22,7 @@ function StatusBar() {
   const activeStorms = events.filter(e => e.category === 'severeStorms');
 
   return (
-    <div className="flex items-center gap-4 text-[10px] text-gray-400 px-4 py-1 bg-gray-900/80 border-t border-gray-800">
+    <div className="app-status flex items-center gap-4">
       <div className="flex items-center gap-1">
         <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
         <span>LIVE</span>
@@ -42,15 +47,15 @@ function StatusBar() {
         <CloudLightning className="w-3 h-3 text-blue-400" />
         <span>{activeStorms.length} storms</span>
       </div>
-      <div className="ml-auto text-gray-600">
-        NASA EONET • USGS • GIBS
+      <div className="ml-auto" style={{ color: 'var(--text-faint)' }}>
+        OSM · NASA GIBS · EONET · USGS
       </div>
     </div>
   );
 }
 
 function EventAlerts() {
-  const { events, layers, selectedEvent, setSelectedEvent } = useStore();
+  const { events, layers } = useStore();
   const [expanded, setExpanded] = useState(true);
   
   const activeEventLayers = layers.filter(l => l.enabled && l.type === 'events');
@@ -60,14 +65,15 @@ function EventAlerts() {
 
   return (
     <div className="absolute top-16 left-4 z-30 max-w-xs">
-      <div className="bg-gray-900/90 backdrop-blur-sm border border-gray-700 rounded-xl overflow-hidden shadow-2xl">
+      <div className="hud-card overflow-hidden">
         <button
           onClick={() => setExpanded(!expanded)}
-          className="w-full flex items-center justify-between px-3 py-2 bg-gray-800/50 border-b border-gray-700"
+          className="w-full flex items-center justify-between px-3 py-2"
+          style={{ background: 'var(--surface-2)', borderBottom: '1px solid var(--border)' }}
         >
           <div className="flex items-center gap-2">
-            <AlertTriangle className="w-3.5 h-3.5 text-yellow-400" />
-            <span className="text-xs font-semibold text-gray-200">Live Alerts</span>
+            <AlertTriangle className="w-3.5 h-3.5" style={{ color: '#e6b84d' }} />
+            <span className="text-xs font-semibold" style={{ color: 'var(--text)' }}>Live Alerts</span>
             <span className="bg-red-500/20 text-red-400 text-[10px] px-1.5 py-0.5 rounded-full">
               {recentEvents.length}
             </span>
@@ -91,16 +97,20 @@ function EventAlerts() {
               return (
                 <div
                   key={event.id}
-                  className="px-3 py-2 border-b border-gray-800/50 hover:bg-gray-800/30 cursor-pointer transition-colors"
-                  onClick={() => setSelectedEvent(event)}
+                  className="px-3 py-2 cursor-pointer transition-colors"
+                  style={{ borderBottom: '1px solid var(--border)' }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    useStore.getState().selectEvent(event, { flyTo: true });
+                  }}
                 >
                   <div className="flex items-start gap-2">
                     <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${colorClass}`}>
                       {event.category.toUpperCase()}
                     </span>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs text-gray-200 truncate">{event.title}</p>
-                      <p className="text-[10px] text-gray-500">
+                      <p className="text-xs truncate" style={{ color: 'var(--text)' }}>{event.title}</p>
+                      <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
                         {event.geometry[0]?.date && new Date(event.geometry[0].date).toLocaleString()}
                       </p>
                     </div>
@@ -115,40 +125,9 @@ function EventAlerts() {
   );
 }
 
-function InfoPanel() {
-  const { selectedEvent, setSelectedEvent } = useStore();
-  
-  if (!selectedEvent) return null;
-  
-  return (
-    <div className="absolute bottom-16 left-4 z-30 max-w-sm">
-      <div className="bg-gray-900/95 backdrop-blur-sm border border-gray-700 rounded-xl p-4 shadow-2xl">
-        <div className="flex items-start justify-between mb-2">
-          <h3 className="text-sm font-bold text-gray-100">{selectedEvent.title}</h3>
-          <button onClick={() => setSelectedEvent(null)} className="text-gray-500 hover:text-gray-300">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-        <div className="space-y-1.5">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded">
-              {selectedEvent.category}
-            </span>
-          </div>
-          {selectedEvent.geometry?.map((g, i) => (
-            <div key={i} className="text-xs text-gray-400">
-              <span className="text-gray-500">Coordinates:</span> {g.coordinates?.[1]?.toFixed(2)}°, {g.coordinates?.[0]?.toFixed(2)}°
-              {g.date && <span className="ml-2 text-gray-600">({new Date(g.date).toLocaleDateString()})</span>}
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function TimeControl() {
   const { timeSlider, setTimeSlider } = useStore();
+  const [playing, setPlaying] = useState(false);
   const dates = [];
   const now = new Date();
   for (let i = 7; i >= 0; i--) {
@@ -156,66 +135,151 @@ function TimeControl() {
     d.setDate(d.getDate() - i);
     dates.push(d.toISOString().split('T')[0]);
   }
+  const maxIdx = dates.length - 1;
+
+  useEffect(() => {
+    if (!playing) return;
+    const id = window.setInterval(() => {
+      const current = useStore.getState().timeSlider;
+      const next = current >= maxIdx ? 0 : current + 1;
+      useStore.getState().setTimeSlider(next);
+    }, 900);
+    return () => window.clearInterval(id);
+  }, [playing, maxIdx]);
 
   return (
     <div className="absolute bottom-16 right-4 z-30">
-      <div className="bg-gray-900/90 backdrop-blur-sm border border-gray-700 rounded-xl px-4 py-2 shadow-2xl">
-        <div className="flex items-center gap-3">
-          <span className="text-[10px] text-gray-500">TIME</span>
+      <div className="hud-card px-3 py-2">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            className={`icon-btn${playing ? ' is-on' : ''}`}
+            onClick={() => setPlaying((p) => !p)}
+            aria-label={playing ? 'Pause animation' : 'Play animation'}
+            title={playing ? 'Pause' : 'Play'}
+            style={{ width: 24, height: 24 }}
+          >
+            {playing ? <Pause size={12} /> : <Play size={12} />}
+          </button>
+          <span className="text-[10px]" style={{ color: 'var(--text-faint)' }}>TIME</span>
           <input
             type="range"
             min="0"
-            max={dates.length - 1}
+            max={maxIdx}
             value={timeSlider}
             onChange={(e) => setTimeSlider(parseInt(e.target.value))}
-            className="w-32 h-1 bg-gray-700 rounded-full appearance-none cursor-pointer accent-blue-500"
+            className="panel-slider w-32"
+            style={{
+              '--slider-fill': `${(timeSlider / Math.max(maxIdx, 1)) * 100}%`,
+            } as CSSProperties}
           />
-          <span className="text-[10px] text-gray-300 w-20">{dates[timeSlider]}</span>
+          <span className="text-[10px] w-20" style={{ color: 'var(--text)' }}>{dates[timeSlider]}</span>
         </div>
       </div>
     </div>
   );
 }
 
+function activeProviderKey(state: {
+  aiProvider: AiProvider;
+  minimaxKey: string;
+  nvidiaKey: string;
+}) {
+  if (state.aiProvider === 'nvidia') return state.nvidiaKey;
+  return state.minimaxKey;
+}
+
 export default function App() {
-  const { apiKey, setApiKey, showApiKeyModal, setShowApiKeyModal } = useStore();
+  const {
+    apiKey, setApiKey, showApiKeyModal, setShowApiKeyModal, theme, setTheme,
+    minimaxKey, setMinimaxKey, nvidiaKey, setNvidiaKey,
+    aiProvider, setAiProvider, aiModel, setAiModel, agentOpen, setAgentOpen,
+    stationsOpen, setStationsOpen,
+  } = useStore();
   const [tempKey, setTempKey] = useState('');
+  const [tempMinimax, setTempMinimax] = useState('');
+  const [tempNvidia, setTempNvidia] = useState('');
+  const [tempProvider, setTempProvider] = useState<AiProvider>(aiProvider);
   const { getEventsByCategory } = useNasaEvents();
+  const hasAiKey = Boolean(activeProviderKey({ aiProvider, minimaxKey, nvidiaKey }));
+  const providerLabel = providerMeta(aiProvider).label;
 
   useEffect(() => {
-    if (!apiKey) {
-      setShowApiKeyModal(true);
-    }
-  }, []);
+    applyDocumentTheme(theme);
+  }, [theme]);
+
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      const next = event.data?.theme;
+      if (next === 'light' || next === 'dark') setTheme(next);
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, [setTheme]);
+
+  useEffect(() => {
+    if (!showApiKeyModal) return;
+    setTempMinimax(minimaxKey);
+    setTempNvidia(nvidiaKey);
+    setTempProvider(aiProvider);
+    setTempKey(apiKey);
+  }, [minimaxKey, nvidiaKey, aiProvider, apiKey, showApiKeyModal]);
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-gray-950 overflow-hidden">
-      {/* Header */}
-      <header className="h-12 bg-gray-900/95 border-b border-gray-800 flex items-center px-4 z-50 flex-shrink-0">
+    <div className="app-shell">
+      <header className="app-header">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-cyan-400 rounded-lg flex items-center justify-center">
             <Satellite className="w-4 h-4 text-white" />
           </div>
           <div>
-            <h1 className="text-sm font-bold text-gray-100 leading-tight">Earth Monitor</h1>
-            <p className="text-[10px] text-gray-500 leading-tight">NASA Satellite Data Visualization</p>
+            <h1 className="text-sm font-bold leading-tight" style={{ color: 'var(--text)' }}>Earth Monitor</h1>
+            <p className="text-[10px] leading-tight" style={{ color: 'var(--text-muted)' }}>NASA Satellite Data Visualization</p>
           </div>
         </div>
         
         <div className="ml-auto flex items-center gap-3">
-          <div className="flex items-center gap-2 text-[10px] text-gray-500">
-            <div className={`w-2 h-2 rounded-full ${apiKey ? 'bg-green-500' : 'bg-yellow-500'}`} />
-            {apiKey ? 'API Connected' : 'No API Key'}
+          <div className="flex items-center gap-2 text-[10px]" style={{ color: 'var(--text-muted)' }}>
+            <div className={`w-2 h-2 rounded-full ${hasAiKey ? 'bg-green-500' : 'bg-yellow-500'}`} />
+            {hasAiKey ? providerLabel : 'No AI key'}
           </div>
           <button
-            onClick={() => setShowApiKeyModal(true)}
-            className="text-[10px] bg-gray-800 border border-gray-700 text-gray-300 px-2 py-1 rounded hover:bg-gray-700 transition-colors"
+            type="button"
+            className={`icon-btn${stationsOpen ? ' is-on' : ''}`}
+            onClick={() => setStationsOpen(!stationsOpen)}
+            aria-label="Toggle live stations monitoring"
+            title="Live Stations Monitoring"
           >
-            {apiKey ? 'Change Key' : 'Add API Key'}
+            <Radio className="w-4 h-4" />
           </button>
-          <div className="flex items-center gap-1 text-[10px] text-gray-500 border-l border-gray-800 pl-3">
+          <button
+            type="button"
+            className={`icon-btn${agentOpen ? ' is-on' : ''}`}
+            onClick={() => setAgentOpen(!agentOpen)}
+            aria-label="Toggle researcher agent"
+            title="Researcher Agent"
+          >
+            <Bot className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            className="icon-btn"
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+            title={theme === 'dark' ? 'Light theme' : 'Dark theme'}
+          >
+            {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+          </button>
+          <button
+            onClick={() => setShowApiKeyModal(true)}
+            className="ui-btn"
+            style={{ padding: '4px 10px', fontSize: 11 }}
+          >
+            Providers
+          </button>
+          <div className="zoom-hint flex items-center gap-1 text-[10px] pl-3" style={{ color: 'var(--text-muted)', borderLeft: '1px solid var(--border)' }}>
             <Info className="w-3 h-3" />
-            <span>Scroll to zoom • Drag to rotate</span>
+            <span>Scroll to zoom · Drag to rotate</span>
           </div>
         </div>
       </header>
@@ -231,107 +295,205 @@ export default function App() {
           
           {/* Overlay elements */}
           <EventAlerts />
-          <InfoPanel />
           <TimeControl />
           
-          {/* Quick layer toggles */}
-          <div className="absolute top-4 right-4 z-30 flex flex-col gap-1">
-            <QuickToggle layerId="clouds" label="Clouds" />
-            <QuickToggle layerId="volcanoes" label="Volcanoes" />
-            <QuickToggle layerId="wildfires" label="Fires" />
-            <QuickToggle layerId="earthquakes" label="Quakes" />
-            <QuickToggle layerId="storms" label="Storms" />
-            <QuickToggle layerId="co2" label="CO₂" />
-            <QuickToggle layerId="temperature" label="Temp" />
-          </div>
+          <GlobeLayerBar />
         </div>
+        <AgentPanel />
       </div>
+
+      <LiveStationsPanel />
 
       {/* Status bar */}
       <StatusBar />
 
       {/* API Key Modal */}
       {showApiKeyModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm">
-          <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 bg-blue-500/20 rounded-xl flex items-center justify-center">
-                <Satellite className="w-5 h-5 text-blue-400" />
-              </div>
-              <div>
-                <h2 className="text-lg font-bold text-gray-100">NASA API Configuration</h2>
-                <p className="text-xs text-gray-500">Configure your NASA Earthdata API key</p>
-              </div>
-            </div>
-            
-            <div className="space-y-3">
-              <div>
-                <label className="text-xs text-gray-400 block mb-1">API Key (optional)</label>
-                <input
-                  type="password"
-                  placeholder="Enter your NASA API key..."
-                  value={tempKey || apiKey}
-                  onChange={(e) => setTempKey(e.target.value)}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500"
-                />
-              </div>
-              
-              <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/50">
-                <p className="text-xs text-gray-400 leading-relaxed">
-                  <strong className="text-gray-300">Note:</strong> The application works without an API key using 
-                  NASA's public EONET events API and USGS earthquake data. Adding a NASA Earthdata key enables 
-                  additional GIBS satellite imagery layers and higher-resolution data access.
-                </p>
-                <a
-                  href="https://urs.earthdata.nasa.gov/users/new"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-400 text-xs hover:underline mt-2 inline-block"
-                >
-                  → Register for a free NASA Earthdata account
-                </a>
-              </div>
-              
-              <div className="flex gap-2">
-                <button
-                  onClick={() => {
-                    if (tempKey) setApiKey(tempKey);
-                    setShowApiKeyModal(false);
-                  }}
-                  className="flex-1 bg-blue-600 text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-blue-500 transition-colors"
-                >
-                  {apiKey ? 'Update Key' : 'Save & Continue'}
-                </button>
-                <button
-                  onClick={() => setShowApiKeyModal(false)}
-                  className="px-4 py-2 bg-gray-800 border border-gray-700 text-gray-300 rounded-lg text-sm hover:bg-gray-700 transition-colors"
-                >
-                  Skip
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <ProvidersModal
+          tempKey={tempKey}
+          setTempKey={setTempKey}
+          tempMinimax={tempMinimax}
+          setTempMinimax={setTempMinimax}
+          tempNvidia={tempNvidia}
+          setTempNvidia={setTempNvidia}
+          tempProvider={tempProvider}
+          setTempProvider={setTempProvider}
+          apiKey={apiKey}
+          aiModel={aiModel}
+          setApiKey={setApiKey}
+          setMinimaxKey={setMinimaxKey}
+          setNvidiaKey={setNvidiaKey}
+          setAiProvider={setAiProvider}
+          setAiModel={setAiModel}
+          onClose={() => setShowApiKeyModal(false)}
+        />
       )}
     </div>
   );
 }
 
-function QuickToggle({ layerId, label }: { layerId: string; label: string }) {
-  const { layers, toggleLayer } = useStore();
-  const layer = layers.find(l => l.id === layerId);
-  if (!layer) return null;
-  
+function ProvidersModal({
+  tempKey,
+  setTempKey,
+  tempMinimax,
+  setTempMinimax,
+  tempNvidia,
+  setTempNvidia,
+  tempProvider,
+  setTempProvider,
+  apiKey,
+  aiModel,
+  setApiKey,
+  setMinimaxKey,
+  setNvidiaKey,
+  setAiProvider,
+  setAiModel,
+  onClose,
+}: {
+  tempKey: string;
+  setTempKey: (v: string) => void;
+  tempMinimax: string;
+  setTempMinimax: (v: string) => void;
+  tempNvidia: string;
+  setTempNvidia: (v: string) => void;
+  tempProvider: AiProvider;
+  setTempProvider: (v: AiProvider) => void;
+  apiKey: string;
+  aiModel: string;
+  setApiKey: (v: string) => void;
+  setMinimaxKey: (v: string) => void;
+  setNvidiaKey: (v: string) => void;
+  setAiProvider: (v: AiProvider) => void;
+  setAiModel: (v: string) => void;
+  onClose: () => void;
+}) {
+  const meta = providerMeta(tempProvider);
+  const keyValue = tempProvider === 'nvidia' ? tempNvidia : tempMinimax;
+  const setKeyValue = tempProvider === 'nvidia' ? setTempNvidia : setTempMinimax;
+  const modelValue = meta.models.includes(aiModel) ? aiModel : meta.models[0];
+
   return (
-    <button
-      onClick={() => toggleLayer(layerId)}
-      className={`px-2.5 py-1 rounded-lg text-[10px] font-medium transition-all border ${
-        layer.enabled
-          ? 'bg-blue-500/20 border-blue-500/50 text-blue-300'
-          : 'bg-gray-800/80 border-gray-700/50 text-gray-500 hover:text-gray-300 hover:border-gray-600'
-      }`}
-    >
-      {label}
-    </button>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm">
+      <div className="hud-card p-6 max-w-md w-full mx-4 providers-modal">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="side-kicker-icon" style={{ width: 40, height: 40, borderRadius: 12 }}>
+            <Satellite className="w-5 h-5" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold" style={{ color: 'var(--text)' }}>Data and AI providers</h2>
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              MiniMax, NVIDIA, and optional NASA Earthdata
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs block mb-1" style={{ color: 'var(--text-muted)' }}>Researcher provider</label>
+            <div className="provider-pick">
+              {AI_PROVIDERS.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  className={`hud-chip${tempProvider === p.id ? ' is-on' : ''}`}
+                  onClick={() => {
+                    setTempProvider(p.id);
+                    if (!p.models.includes(aiModel)) setAiModel(p.models[0]);
+                  }}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs block mb-1" style={{ color: 'var(--text-muted)' }}>{meta.label} API key</label>
+            <input
+              type="password"
+              placeholder={meta.keyPlaceholder}
+              value={keyValue}
+              onChange={(e) => setKeyValue(e.target.value)}
+              className="field-input"
+              autoComplete="off"
+            />
+            <p className="layer-desc">
+              {meta.hint} Get a key at{' '}
+              <a className="hint-link" href={meta.docsUrl} target="_blank" rel="noreferrer">{meta.docsLabel}</a>
+            </p>
+          </div>
+
+          <div>
+            <label className="text-xs block mb-1" style={{ color: 'var(--text-muted)' }}>Model</label>
+            <select
+              className="field-input"
+              value={modelValue}
+              onChange={(e) => setAiModel(e.target.value)}
+            >
+              {meta.models.map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="text-xs block mb-1" style={{ color: 'var(--text-muted)' }}>NASA Earthdata (optional)</label>
+            <input
+              type="password"
+              placeholder="Enter your NASA API key..."
+              value={tempKey || apiKey}
+              onChange={(e) => setTempKey(e.target.value)}
+              className="field-input"
+            />
+          </div>
+
+          <div className="settings-block" style={{ marginBottom: 0 }}>
+            <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+              <strong style={{ color: 'var(--text)' }}>Note:</strong> The globe runs on public NASA EONET and USGS feeds.
+              The researcher uses the selected provider. NASA Earthdata is optional for GIBS.
+            </p>
+            <a
+              href="https://urs.earthdata.nasa.gov/users/new"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-400 text-xs hover:underline mt-2 inline-block"
+            >
+              Register for a free NASA Earthdata account
+            </a>
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              onClick={() => {
+                if (tempKey) setApiKey(tempKey);
+                setMinimaxKey(tempMinimax.trim());
+                setNvidiaKey(tempNvidia.trim());
+                setAiProvider(tempProvider);
+                setAiModel(modelValue);
+                onClose();
+              }}
+              className="ui-btn primary flex-1"
+            >
+              Save providers
+            </button>
+            <button onClick={onClose} className="ui-btn">
+              Skip
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function GlobeLayerBar() {
+  const layers = useStore((s) => s.layers);
+  const overlayLayers = layers.filter(
+    (l) => l.category === 'pollution' || l.category === 'weather'
+  );
+  return (
+    <div className="globe-lozenge-bar">
+      <LozengeRow layers={overlayLayers} />
+    </div>
   );
 }
